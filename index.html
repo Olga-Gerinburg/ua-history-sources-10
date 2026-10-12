@@ -377,6 +377,7 @@
             <p style="font-size: 1.2rem; margin-bottom: 15px; color: var(--text-color);">Ваш результат:</p>
             <div style="font-size: 3rem; font-weight: bold; color: var(--card-color); margin-bottom: 10px;" id="score-text">0 / 0</div>
             <div style="font-size: 1.3rem; margin-bottom: 30px; font-weight: 600;" id="percent-text">Успішність: 0%</div>
+            <button class="btn-primary" onclick="restartCurrentBlock()" style="width: 100%; font-size: 1.1rem; padding: 15px; margin-bottom: 15px; background-color: var(--accent-color);">🔄 Пройти цей блок ще раз</button>
             <button class="btn-primary" onclick="closeModalAndGoHome()" style="width: 100%; font-size: 1.1rem; padding: 15px;">Повернутися на головну</button>
         </div>
     </div>
@@ -433,6 +434,14 @@
 
         // Завантажуємо CSV для активних блоків
         function loadAllData() {
+            let activeBlocksCount = blocks.filter(b => b.active && b.csvUrl).length;
+            let loadedCount = 0;
+
+            if (activeBlocksCount === 0) {
+                renderMenu();
+                return;
+            }
+
             blocks.forEach(block => {
                 if(block.active && block.csvUrl) {
                     Papa.parse(block.csvUrl, {
@@ -440,17 +449,61 @@
                         header: false,
                         skipEmptyLines: true,
                         complete: function(results) {
-                            // Відкидаємо перший рядок (заголовки)
                             let rows = results.data.slice(1);
                             block.data = rows;
                             block.count = rows.length;
-                            renderMenu(); // Оновлюємо меню після завантаження
+                            loadedCount++;
+                            
+                            // Коли всі дані завантажено, перевіряємо, де зупинився учень
+                            if (loadedCount === activeBlocksCount) {
+                                restoreSession();
+                            }
                         }
                     });
-                } else {
-                    renderMenu();
                 }
             });
+        }
+
+        // Відновлення сесії (нової функції)
+        function restoreSession() {
+            const savedState = JSON.parse(localStorage.getItem('history_quiz_state'));
+            
+            // Якщо є збережений стан - повертаємо прямо в тест
+            if (savedState && savedState.blockId) {
+                currentBlockId = savedState.blockId;
+                const block = blocks.find(b => b.id === currentBlockId);
+                
+                // Формуємо масив запитань, як при звичайному старті
+                questions = progressData[currentBlockId].order.map(origIndex => {
+                    let row = block.data[origIndex];
+                    return {
+                        originalIndex: origIndex,
+                        questionText: row[1],
+                        sourceText: row[2],
+                        options: row[3].split('\n').map(o => o.trim()).filter(o => o !== ''),
+                        correctAnswer: row[4].trim(),
+                        explanation: row[5]
+                    };
+                });
+                
+                currentIndex = savedState.index || 0;
+                
+                document.getElementById('menu-view').style.display = 'none';
+                document.getElementById('quiz-view').style.display = 'flex';
+                document.getElementById('btn-home').style.display = 'block';
+                renderQuestion();
+            } else {
+                renderMenu(); // Якщо збережень немає - показуємо меню
+            }
+        }
+
+        // Утиліта для збереження поточного екрану
+        function saveCurrentState() {
+            if (currentBlockId) {
+                localStorage.setItem('history_quiz_state', JSON.stringify({ blockId: currentBlockId, index: currentIndex }));
+            } else {
+                localStorage.removeItem('history_quiz_state');
+            }
         }
 
         // Відмальовка меню
@@ -517,6 +570,7 @@
             document.getElementById('btn-home').style.display = 'block';
 
             renderQuestion();
+            saveCurrentState();
         }
 
         // Відмальовка запитання
@@ -638,6 +692,7 @@
             }
             if (currentIndex < 0) currentIndex = 0;
             renderQuestion();
+            saveCurrentState();
         }
 
         // Функція підрахунку балів та показу результатів
@@ -683,6 +738,7 @@
             document.getElementById('menu-view').style.display = 'block';
             document.getElementById('btn-home').style.display = 'none';
             currentBlockId = null;
+            saveCurrentState();
             renderMenu();
         }
 
@@ -694,6 +750,7 @@
         function clearProgress() {
             if(confirm("Ви впевнені, що хочете видалити весь свій прогрес?")) {
                 localStorage.removeItem('history_quiz_progress');
+                localStorage.removeItem('history_quiz_state');
                 progressData = {};
                 if(currentBlockId) {
                     goHome();
@@ -721,6 +778,16 @@
                 document.exitFullscreen();
             }
         }
+    // Перезапуск поточного блоку з новою випадковою послідовністю
+        function restartCurrentBlock() {
+            if (confirm("Почати цей блок спочатку? (Попередні відповіді будуть очищені)")) {
+                delete progressData[currentBlockId]; // Видаляємо старі результати саме цього блоку
+                saveProgress(); // Оновлюємо пам'ять
+                document.getElementById('result-modal').style.display = 'none'; // Ховаємо фінальне вікно
+                startQuiz(currentBlockId); // Запускаємо наново (система сама згенерує новий порядок)
+            }
+        }
+
     </script>
 </body>
 </html>
