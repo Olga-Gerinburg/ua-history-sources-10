@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тести по джерелах (Історія України)</title>
+   <!-- Тематичний фавікон (Історичний сувій) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2275%22>📜</text></svg>">
+    <!-- Підключаємо бібліотеку для правильного читання Google Таблиць -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Підключаємо красиві шрифти -->
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #E8DCC4; /* Лляне полотно */
+            --accent-color: #A35E5E; /* М'який винний (для рамок та ліній) */
+            --card-color: #722F2F; /* Глибокий винний/бордо (верхня панель, кнопки навігації) */
+            --text-color: #2C221E; /* Шоколадний антрацит (текст) */
+            --white: #F9F6F0; 
+            
+            /* Світлі кольори для правильних/неправильних відповідей */
+            --correct-bg: #E6F4EA;
+            --correct-text: #137333;
+            --incorrect-bg: #FCE8E6;
+            --incorrect-text: #C5221F;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* Верхня панель */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px 30px;
+            background-color: var(--card-color);
+            color: var(--white);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .toolbar button {
+            background: transparent;
+            border: 1px solid var(--white);
+            color: var(--white);
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: 0.3s;
+        }
+
+        .toolbar button:hover {
+            background: var(--white);
+            color: var(--card-color);
+        }
+
+        /* Головний контейнер */
+        .container {
+            flex-grow: 1;
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Головне меню */
+        #menu-view {
+            text-align: center;
+        }
+
+        h1 {
+            font-family: 'Lora', serif;
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+            color: var(--card-color);
+        }
+
+        .blocks-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* Рівно 2 колонки однакової ширини */
+            gap: 20px;
+            max-width: 900px; /* Обмежує максимальну ширину сітки, щоб картки не були занадто довгими */
+            margin: 0 auto; /* Центрує всю сітку по горизонталі */
+        }
+
+        .block-card {
+            background: var(--white);
+            border: 2px solid var(--accent-color);
+            border-radius: 10px;
+            padding: 30px;
+            cursor: pointer;
+            transition: 0.3s;
+            position: relative;
+        }
+
+        .block-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(139, 90, 43, 0.2);
+        }
+
+        .block-card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            border-color: #ccc;
+        }
+
+        .block-card.disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .block-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .block-meta {
+            font-size: 0.9rem;
+            color: var(--card-color);
+        }
+
+        .badge-dev {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: var(--incorrect-color);
+            color: white;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            border-radius: 20px;
+        }
+
+        /* Режим квізу (2 колонки) */
+        #quiz-view {
+            display: none;
+            flex-direction: row;
+            gap: 30px;
+            height: 100%;
+        }
+
+        .left-panel {
+            flex: 3;
+            background: var(--white);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        .right-panel {
+            flex: 2;
+            background: var(--white);
+            padding: 30px;
+            border-radius: 10px;
+            border-left: 5px solid var(--accent-color);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            display: none; /* Прихована до відповіді */
+            flex-direction: column;
+        }
+
+        /* Прогрес бар */
+        .progress-text {
+            font-weight: 600;
+            color: var(--card-color);
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        /* Джерело */
+        .source-text {
+            font-family: 'Lora', serif;
+            font-style: italic;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: var(--bg-color);
+            border-left: 4px solid var(--card-color);
+            border-radius: 0 10px 10px 0;
+            margin-bottom: 25px;
+            white-space: pre-wrap; /* зберігає абзаци */
+        }
+
+        /* Запитання */
+        .question-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        /* Варіанти відповідей */
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .option-btn {
+            background: var(--white);
+            border: 2px solid var(--accent-color);
+            color: var(--text-color);
+            padding: 15px;
+            text-align: left;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            background: var(--bg-color);
+        }
+
+        .option-btn.correct {
+            background-color: var(--correct-bg);
+            color: var(--correct-text);
+            border-color: var(--correct-text);
+        }
+
+        .option-btn.incorrect {
+            background-color: var(--incorrect-bg);
+            color: var(--incorrect-text);
+            border-color: var(--incorrect-text);
+        }
+
+        .option-btn:disabled {
+            cursor: default;
+        }
+
+        /* Панель пояснення */
+        .explanation-title {
+            color: var(--card-color);
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .explanation-text {
+            font-family: 'Lora', serif;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            flex-grow: 1;
+            white-space: pre-wrap;
+        }
+
+        /* Підсвітка маркерів (слів-підказок у поясненні) */
+        mark {
+            background-color: #EFE9D9; /* Такий самий фон, як у тексту джерела зліва */
+            color: #B06000; /* Темне золото */
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(176, 96, 0, 0.2); /* Легка золотиста рамочка для чіткості */
+        }
+
+        /* Навігація */
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: auto;
+        }
+
+        .btn-primary {
+            background-color: var(--card-color);
+            color: var(--white);
+            border: none;
+            padding: 12px 25px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: 0.3s;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--text-color);
+        }
+
+        .btn-primary:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Футер */
+        footer {
+            background-color: var(--text-color);
+            color: var(--white);
+            text-align: center;
+            padding: 15px;
+            font-size: 0.9rem;
+            margin-top: auto;
+        }
+
+        /* Адаптивність для телефонів */
+        @media (max-width: 800px) {
+            #quiz-view {
+                flex-direction: column;
+            }
+            .right-panel {
+                border-left: none;
+                border-top: 5px solid var(--accent-color);
+            }
+            /* Додайте цей фрагмент: */
+            .blocks-grid {
+                grid-template-columns: 1fr; /* 1 колонка на телефонах */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button id="btn-home" style="display: none;" onclick="goHome()">🏠 На головну</button>
+        <!-- Додано margin-left: auto, що назавжди притискає цей блок до правого краю -->
+        <div style="margin-left: auto; display: flex; gap: 10px;">
+            <button onclick="toggleFullScreen()">⛶ На весь екран</button>
+            <button onclick="clearProgress()">🔄 Очистити прогрес</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- ГОЛОВНЕ МЕНЮ -->
+        <div id="menu-view">
+            <h1>Тести по джерелах<br><span style="font-size: 1.5rem; color: var(--text-color);">Історія України, 10 клас</span></h1>
+            <div class="blocks-grid" id="blocks-container">
+                <!-- Блоки генеруються через JS -->
+            </div>
+        </div>
+
+        <!-- ІНТЕРАКТИВ -->
+        <div id="quiz-view">
+            <div class="left-panel">
+                <div class="progress-text" id="progress-indicator">Завдання 1 з 10</div>
+                <div class="question-text" id="question-text">Запитання...</div>
+                <div class="source-text" id="source-text">Завантаження...</div>
+                <div class="options-list" id="options-container">
+                    <!-- Кнопки відповідей -->
+                </div>
+                
+                <div class="nav-buttons">
+                    <button class="btn-primary" id="btn-prev" onclick="changeQuestion(-1)">← Попереднє</button>
+                    <!-- Кнопка "Далі" перенесена в праву панель для логічного флоу -->
+                </div>
+            </div>
+
+            <div class="right-panel" id="explanation-panel">
+                <div class="explanation-title" id="explanation-status">Пояснення:</div>
+                <div class="explanation-text" id="explanation-text">Тут буде розбір джерела...</div>
+                <button class="btn-primary" id="btn-next" onclick="changeQuestion(1)" style="align-self: flex-end; width: 100%;">Далі →</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Інтерактив створений Ольгою Герінбург
+    </footer>
+
+    <!-- Вікно результатів (Модалка) -->
+    <div id="result-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 1000;">
+        <div style="background: var(--bg-color); padding: 40px; border-radius: 10px; max-width: 450px; width: 90%; text-align: center; border: 4px solid var(--accent-color); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <h2 style="color: var(--card-color); font-family: 'Lora', serif; font-size: 2rem; margin-bottom: 20px;">Блок завершено!</h2>
+            <p style="font-size: 1.2rem; margin-bottom: 15px; color: var(--text-color);">Ваш результат:</p>
+            <div style="font-size: 3rem; font-weight: bold; color: var(--card-color); margin-bottom: 10px;" id="score-text">0 / 0</div>
+            <div style="font-size: 1.3rem; margin-bottom: 30px; font-weight: 600;" id="percent-text">Успішність: 0%</div>
+            <button class="btn-primary" onclick="closeModalAndGoHome()" style="width: 100%; font-size: 1.1rem; padding: 15px;">Повернутися на головну</button>
+        </div>
+    </div>
+
+    <script>
+        // --- ДАНІ БЛОКІВ ---
+        const blocks = [
+    { 
+        id: 'ww1', 
+        title: 'Перша світова війна', 
+        csvUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMk4Trt-6yd3Cmcek65LmG5t45rMiEeT2iGsnOPqSyZVMx65Kn-wPPV77XpMv0GfHyp4ZjTU5FazPp/pub?gid=0&single=true&output=csv', 
+        active: true,
+        data: [],
+        count: 0
+    },
+    { 
+        id: 'revolution', 
+        title: 'Українська революція', 
+        csvUrl: '', 
+        active: false,
+        data: [],
+        count: 0
+    },
+    { 
+        id: 'interwar', 
+        title: 'Міжвоєнний період', 
+        csvUrl: '', 
+        active: false,
+        data: [],
+        count: 0
+    },
+    // Доданий 4-й блок
+    { 
+        id: 'ww2', 
+        title: 'Україна в роки Другої світової війни', 
+        csvUrl: '', 
+        active: false,
+        data: [],
+        count: 0
+    }
+];
+
+        // --- СТАН ДОДАТКУ ---
+        let currentBlockId = null;
+        let questions = []; // Поточний масив запитань
+        let currentIndex = 0; // Поточний індекс запитання
+        let progressData = JSON.parse(localStorage.getItem('history_quiz_progress')) || {}; 
+        // Формат збереження: { 'ww1': { order: [3, 1, 0, 2], answers: { '3': 'Варіант А' } } }
+
+        // Ініціалізація при завантаженні сторінки
+        window.onload = () => {
+            loadAllData();
+        };
+
+        // Завантажуємо CSV для активних блоків
+        function loadAllData() {
+            blocks.forEach(block => {
+                if(block.active && block.csvUrl) {
+                    Papa.parse(block.csvUrl, {
+                        download: true,
+                        header: false,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            // Відкидаємо перший рядок (заголовки)
+                            let rows = results.data.slice(1);
+                            block.data = rows;
+                            block.count = rows.length;
+                            renderMenu(); // Оновлюємо меню після завантаження
+                        }
+                    });
+                } else {
+                    renderMenu();
+                }
+            });
+        }
+
+        // Відмальовка меню
+        function renderMenu() {
+            const container = document.getElementById('blocks-container');
+            container.innerHTML = '';
+
+            blocks.forEach(block => {
+                const card = document.createElement('div');
+                card.className = `block-card ${block.active ? '' : 'disabled'}`;
+                
+                let countText = block.active ? (block.count > 0 ? `Запитань: ${block.count}` : 'Завантаження...') : 'Очікується';
+                let badge = block.active ? '' : '<div class="badge-dev">В розробці</div>';
+
+                card.innerHTML = `
+                    ${badge}
+                    <div class="block-title">${block.title}</div>
+                    <div class="block-meta">${countText}</div>
+                `;
+
+                if(block.active) {
+                    card.onclick = () => startQuiz(block.id);
+                } else {
+                    card.onclick = () => alert('Цей розділ наразі знаходиться в розробці!');
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        // Початок квізу
+        function startQuiz(blockId) {
+            currentBlockId = blockId;
+            const block = blocks.find(b => b.id === blockId);
+            
+            // Якщо для цього блоку ще немає збереженого порядку та відповідей — створюємо
+            if (!progressData[blockId]) {
+                let initialOrder = Array.from({length: block.data.length}, (_, i) => i);
+                progressData[blockId] = {
+                    order: shuffleArray(initialOrder),
+                    answers: {}
+                };
+                saveProgress();
+            }
+
+            // Формуємо масив запитань у збереженому (випадковому) порядку
+            questions = progressData[blockId].order.map(origIndex => {
+                let row = block.data[origIndex];
+                // Структура рядка (за індексами масиву):
+                // 0: Номер запитання, 1: Запитання, 2: Текст джерела, 3: Варіанти (через Alt+Enter), 4: Правильна, 5: Пояснення
+                return {
+                    originalIndex: origIndex,
+                    questionText: row[1],
+                    sourceText: row[2],
+                    options: row[3].split('\n').map(o => o.trim()).filter(o => o !== ''),
+                    correctAnswer: row[4].trim(),
+                    explanation: row[5]
+                };
+            });
+
+            currentIndex = 0;
+            document.getElementById('menu-view').style.display = 'none';
+            document.getElementById('quiz-view').style.display = 'flex';
+            document.getElementById('btn-home').style.display = 'block';
+
+            renderQuestion();
+        }
+
+        // Відмальовка запитання
+        function renderQuestion() {
+            const q = questions[currentIndex];
+            const savedAnswer = progressData[currentBlockId].answers[q.originalIndex];
+
+            document.getElementById('progress-indicator').innerText = `Завдання ${currentIndex + 1} із ${questions.length}`;
+            document.getElementById('source-text').innerText = q.sourceText;
+            document.getElementById('question-text').innerText = q.questionText;
+            
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.innerHTML = '';
+
+            const explanationPanel = document.getElementById('explanation-panel');
+            
+            // Кнопки навігації
+            document.getElementById('btn-prev').disabled = (currentIndex === 0);
+            
+            if (currentIndex === questions.length - 1) {
+                document.getElementById('btn-next').innerText = "Завершити блок →";
+            } else {
+                document.getElementById('btn-next').innerText = "Далі →";
+            }
+
+            // Перевіряємо, чи правильна відповідь (враховуємо, що в таблиці може бути лише "Б)")
+            const isSavedAnswerCorrect = savedAnswer ? (savedAnswer.startsWith(q.correctAnswer) || savedAnswer === q.correctAnswer) : false;
+
+            // Якщо вже відповідали
+            if (savedAnswer) {
+                explanationPanel.style.display = 'flex';
+                showExplanation(q, isSavedAnswerCorrect);
+            } else {
+                explanationPanel.style.display = 'none';
+            }
+
+            // Малюємо кнопки варіантів
+            q.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt;
+                
+                if (savedAnswer) {
+                    btn.disabled = true;
+                    // Перевіряємо, чи є поточна кнопка правильною відповіддю
+                    const isThisOptCorrect = opt.startsWith(q.correctAnswer) || opt === q.correctAnswer;
+                    
+                    if (isThisOptCorrect) {
+                        btn.classList.add('correct'); // Завжди світимо правильну зеленим
+                    } else if (opt === savedAnswer) {
+                        btn.classList.add('incorrect'); // Неправильний вибір світимо червоним
+                    }
+                } else {
+                    btn.onclick = () => handleAnswer(opt, btn, q);
+                }
+
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        // Обробка кліку по відповіді
+        function handleAnswer(selectedOpt, btnElement, q) {
+            // Перевіряємо, чи починається обраний варіант з тексту правильної відповіді (напр., "Б) Галичина" починається з "Б)")
+            const isCorrect = selectedOpt.startsWith(q.correctAnswer) || selectedOpt === q.correctAnswer;
+            
+            // Зберігаємо прогрес
+            progressData[currentBlockId].answers[q.originalIndex] = selectedOpt;
+            saveProgress();
+
+            // Фарбуємо кнопки
+            const allBtns = document.getElementById('options-container').querySelectorAll('.option-btn');
+            allBtns.forEach(b => {
+                b.disabled = true;
+                const isThisBtnCorrect = b.innerText.startsWith(q.correctAnswer) || b.innerText === q.correctAnswer;
+                
+                if (isThisBtnCorrect) {
+                    b.classList.add('correct'); // Підсвічуємо правильну зеленим
+                } else if (b.innerText === selectedOpt && !isCorrect) {
+                    b.classList.add('incorrect'); // Помилковий вибір червоним
+                }
+            });
+
+            // Відкриваємо праву панель
+            document.getElementById('explanation-panel').style.display = 'flex';
+            showExplanation(q, isCorrect);
+        }
+
+        // Відображення пояснення з підсвіткою маркерів
+        function showExplanation(q, isCorrect) {
+            const statusEl = document.getElementById('explanation-status');
+            const textEl = document.getElementById('explanation-text');
+
+            if (isCorrect) {
+                statusEl.innerText = "✅ Правильно! На що звернути увагу:";
+                statusEl.style.color = "var(--correct-color)";
+            } else {
+                statusEl.innerText = "❌ Помилка. Давайте розберемо джерело:";
+                statusEl.style.color = "var(--incorrect-color)";
+            }
+
+            // Беремо текст пояснення або ставимо заглушку
+            let formattedText = q.explanation ? q.explanation : 'Пояснення відсутнє.';
+            
+            // 1. Спочатку замінюємо подвійні зірочки на жирний текст (для правильної відповіді)
+            formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // 2. Потім замінюємо одинарні зірочки на кольоровий маркер (для слів-підказок)
+            formattedText = formattedText.replace(/\*(.*?)\*/g, '<mark>$1</mark>');
+            
+            textEl.innerHTML = formattedText;
+        }
+
+        // Навігація між питаннями
+        function changeQuestion(direction) {
+            currentIndex += direction;
+            if (currentIndex >= questions.length) {
+                showResults(); // Замість alert викликаємо наше гарне вікно
+                return;
+            }
+            if (currentIndex < 0) currentIndex = 0;
+            renderQuestion();
+        }
+
+        // Функція підрахунку балів та показу результатів
+        function showResults() {
+            let correctAnswers = 0;
+            const total = questions.length;
+            
+            // Проходимось по всіх запитаннях і перевіряємо збережені відповіді
+            questions.forEach(q => {
+                const savedAnswer = progressData[currentBlockId].answers[q.originalIndex];
+                if (savedAnswer && (savedAnswer.startsWith(q.correctAnswer) || savedAnswer === q.correctAnswer)) {
+                    correctAnswers++;
+                }
+            });
+
+            // Рахуємо відсоток
+            const percent = Math.round((correctAnswers / total) * 100);
+
+            // Виводимо дані у вікно
+            document.getElementById('score-text').innerText = `${correctAnswers} з ${total}`;
+            document.getElementById('percent-text').innerText = `Успішність: ${percent}%`;
+            
+            // Якщо результат вище 80%, хвалимо зеленим кольором
+            if (percent >= 80) {
+                document.getElementById('percent-text').style.color = "var(--correct-text)";
+            } else {
+                document.getElementById('percent-text').style.color = "var(--text-color)";
+            }
+
+            // Показуємо модалку
+            document.getElementById('result-modal').style.display = 'flex';
+        }
+
+        // Закриття вікна
+        function closeModalAndGoHome() {
+            document.getElementById('result-modal').style.display = 'none';
+            goHome();
+        }
+
+        // Повернення в меню
+        function goHome() {
+            document.getElementById('quiz-view').style.display = 'none';
+            document.getElementById('menu-view').style.display = 'block';
+            document.getElementById('btn-home').style.display = 'none';
+            currentBlockId = null;
+            renderMenu();
+        }
+
+        // Утиліти: збереження, перемішування, очищення, фулскрін
+        function saveProgress() {
+            localStorage.setItem('history_quiz_progress', JSON.stringify(progressData));
+        }
+
+        function clearProgress() {
+            if(confirm("Ви впевнені, що хочете видалити весь свій прогрес?")) {
+                localStorage.removeItem('history_quiz_progress');
+                progressData = {};
+                if(currentBlockId) {
+                    goHome();
+                } else {
+                    renderMenu();
+                }
+            }
+        }
+
+        function shuffleArray(array) {
+            let arr = array.slice();
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`Помилка: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+    </script>
+</body>
+</html>
